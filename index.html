@@ -31,40 +31,41 @@
 </head>
 
 <body>
+	<h1>Please add this to the home screen of your device.</h1>
+	<h1>And reload this page to use. </h1>
 	<script>
-		function sleep(time) {
-			return new Promise((resolve) => setTimeout(resolve, time));
+		if (sessionStorage.getItem("isReload")) {
+			console.log("页面被刷新");
+			console.log(navigator.userAgent);
+			var os = function () {
+				var ua = navigator.userAgent,
+					isWindowsPhone = /(?:Windows Phone)/.test(ua),
+					isSymbian = /(?:SymbianOS)/.test(ua) || isWindowsPhone,
+					isAndroid = /(?:Android)/.test(ua),
+					isFireFox = /(?:Firefox)/.test(ua),
+					isChrome = /(?:Chrome|CriOS)/.test(ua),
+					isTablet = /(?:iPad|PlayBook)/.test(ua) || (isAndroid && !/(?:Mobile)/.test(ua)) || (isFireFox && /(?:Tablet)/.test(ua)),
+					isPhone = /(?:iPhone)/.test(ua) && !isTablet,
+					isPc = !isPhone && !isAndroid && !isSymbian;
+				return {
+					isTablet: isTablet,
+					isPhone: isPhone,
+					isAndroid: isAndroid,
+					isPc: isPc
+				};
+			}();
+
+			if (os.isAndroid || os.isPhone) {
+				location.href = "https://m.bilibili.com/"
+			} else if (os.isTablet) {
+				location.href = "https://www.bilibili.com/"
+			} else if (os.isPc) {
+				location.href = "https://www.bilibili.com/"
+			}
+		} else {
+			console.log("首次被加载");
+			sessionStorage.setItem("isReload", true)
 		}
-
-
-		sleep(1000); // 等待2秒
-		console.log(navigator.userAgent);
-		var os = function () {
-			var ua = navigator.userAgent,
-				isWindowsPhone = /(?:Windows Phone)/.test(ua),
-				isSymbian = /(?:SymbianOS)/.test(ua) || isWindowsPhone,
-				isAndroid = /(?:Android)/.test(ua),
-				isFireFox = /(?:Firefox)/.test(ua),
-				isChrome = /(?:Chrome|CriOS)/.test(ua),
-				isTablet = /(?:iPad|PlayBook)/.test(ua) || (isAndroid && !/(?:Mobile)/.test(ua)) || (isFireFox && /(?:Tablet)/.test(ua)),
-				isPhone = /(?:iPhone)/.test(ua) && !isTablet,
-				isPc = !isPhone && !isAndroid && !isSymbian;
-			return {
-				isTablet: isTablet,
-				isPhone: isPhone,
-				isAndroid: isAndroid,
-				isPc: isPc
-			};
-		}();
-
-		if (os.isAndroid || os.isPhone) {
-			location.href = "https://m.bilibili.com/"
-		} else if (os.isTablet) {
-			location.href = "https://www.bilibili.com/"
-		} else if (os.isPc) {
-			location.href = "https://www.bilibili.com/"
-		}
-
 	</script>
 </body>
 
