@@ -12,12 +12,12 @@ export default defineConfig({
             },
             includeAssets: ['favicon.svg'],
             manifest: {
-                name: 'Cryption Aganst Censorship',
-                short_name: "Crypted",
-                theme_color: "#39c5bb",
+                name: 'Installable PWA of bilibili',
+                short_name: "PWA-bilibili",
+                theme_color: "#e87c93",
                 start_url: "./",
                 display: "standalone",
-                background_color: "#39c5bb",
+                background_color: "#e87c93",
                 icons: [
                     {
                         src: "favicon.svg",

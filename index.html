@@ -32,6 +32,12 @@
 
 <body>
 	<script>
+		function sleep(time) {
+			return new Promise((resolve) => setTimeout(resolve, time));
+		}
+
+
+		sleep(1000); // 等待2秒
 		console.log(navigator.userAgent);
 		var os = function () {
 			var ua = navigator.userAgent,
@@ -52,11 +58,11 @@
 		}();
 
 		if (os.isAndroid || os.isPhone) {
-			location.href="https://m.bilibili.com/"
+			location.href = "https://m.bilibili.com/"
 		} else if (os.isTablet) {
-			location.href="https://www.bilibili.com/"
+			location.href = "https://www.bilibili.com/"
 		} else if (os.isPc) {
-			location.href="https://www.bilibili.com/"
+			location.href = "https://www.bilibili.com/"
 		}
 
 	</script>
