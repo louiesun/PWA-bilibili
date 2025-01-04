@@ -31,8 +31,16 @@
 </head>
 
 <body>
-	<h1>404</h1>
-	<h1>Waiting to install on your browser. </h1>
+	<h1>Mini 5ools </h1>
+	<input id="BtReset" type="button" value="重置" onclick="ResetOnload();" />
+	<script>
+	  function ResetOnload()
+	  {
+	    localStorage.setItem("isReload", "false")
+	  }
+	</script>
+	<p>Source code: on <a href="https://github.com/louiesun/PWA-bilibili">github</a></p>
+	
 </body>
 
 </html>
