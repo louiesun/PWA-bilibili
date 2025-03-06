@@ -1,0 +1,330 @@
+  <!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DNS over HTTPS Query</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+            }
+
+            h1 {
+                color: #333;
+            }
+
+            label {
+                display: block;
+                margin-top: 10px;
+            }
+
+            input,
+            select {
+                width: 100%;
+                padding: 8px;
+                margin-top: 5px;
+                margin-bottom: 10px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+            }
+
+            button {
+                padding: 10px 20px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+
+            button:hover {
+                background-color: #0056b3;
+            }
+
+            pre {
+                background-color: #f4f4f4;
+                padding: 10px;
+                border-radius: 4px;
+                overflow-x: auto;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1>DNS over HTTPS Query</h1>
+        <form id="dnsForm">
+            <label for="domain">Domain:</label>
+            <input
+                type="text"
+                id="domain"
+                placeholder="Enter domain (e.g., example.com)"
+                required
+            />
+
+            <label for="type">Record Type:</label>
+            <select id="type">
+                <option value="A">A (IPv4 Address)</option>
+                <option value="AAAA">AAAA (IPv6 Address)</option>
+                <option value="HTTPS">HTTPS (HTTPS Record)</option>
+                <option value="MX">MX (Mail Exchange)</option>
+                <option value="TXT">TXT (Text Record)</option>
+                <option value="CNAME">CNAME (Canonical Name)</option>
+                <option value="NS">NS (Name Server)</option>
+            </select>
+
+            <label for="dohServer">DoH Server (optional):</label>
+            <input
+                type="text"
+                id="dohServer"
+                placeholder="e.g., https://cloudflare-dns.com/dns-query"
+            />
+
+            <button type="submit">Query DNS</button>
+        </form>
+
+        <h2>Result:</h2>
+        <pre id="result"></pre>
+
+        <script>
+            async function queryDnsOverHttps(
+                domain,
+                type = "A",
+                dohServer = "https://cloudflare-dns.com/dns-query"
+            ) {
+                // 校验参数
+                if (!domain || typeof domain !== "string") {
+                    throw new Error("Invalid domain");
+                }
+                if (!type || typeof type !== "string") {
+                    throw new Error("Invalid record type");
+                }
+
+                // 对域名进行 URL 编码
+                const encodedDomain = encodeURIComponent(domain);
+                const url = `${dohServer}?name=${encodedDomain}&type=${type}`;
+
+                try {
+                    const response = await fetch(url, {
+                        method: "GET",
+                        headers: {
+                            Accept: "application/dns-json" // 设置 Accept 头
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(
+                            `HTTP error! status: ${response.status}`
+                        );
+                    }
+
+                    const data = await response.json();
+
+                    // 如果是 HTTPS 记录，解析 data 字段
+                    if (type.toUpperCase() === "HTTPS" && data.Answer) {
+                        data.Answer = data.Answer.map(answer => {
+                            if (answer.data && answer.data.startsWith("\\#")) {
+                                // 解析二进制格式的 data 字段
+                                answer.data_text = parseHttpsRecord(
+                                    answer.data
+                                );
+                            }
+                            return answer;
+                        });
+                    }
+
+                    return data;
+                } catch (error) {
+                    console.error("Error fetching DNS data:", error);
+                    return null;
+                }
+            }
+
+            function parseHttpsRecord(data) {
+                const decoder = new TextDecoder("utf-8");
+                // 去掉开头的 \# 和空格
+                const hexData = data
+                    .replace(/^\\#\s*\d+\s*/, "")
+                    .replace(/\s/g, "");
+                // 将十六进制字符串转换为 Uint8Array
+                const binaryData = hexToUint8Array(hexData);
+
+                let offset = 0;
+                // 解析优先级
+                const priority = readUint16(binaryData, offset);
+                offset += 2;
+
+                // 解析目标名称
+                const targetNameLength = binaryData[offset];
+                offset += 1;
+                const targetName =
+                    targetNameLength > 0
+                        ? decoder.decode(
+                              binaryData.slice(
+                                  offset,
+                                  offset + targetNameLength
+                              )
+                          )
+                        : ".";
+                offset += targetNameLength;
+
+                // 解析参数列表
+                const params = parseParams(binaryData, offset, decoder);
+
+                return {
+                    priority,
+                    targetName,
+                    ...params
+                };
+            }
+
+            function hexToUint8Array(hex) {
+                return new Uint8Array(
+                    hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+                );
+            }
+
+            function readUint16(data, offset) {
+                return (data[offset] << 8) | data[offset + 1];
+            }
+
+            function parseParams(data, offset, decoder) {
+                const params = {};
+                while (offset + 4 <= data.length) {
+                    // 确保有足够的字节读取键和长度
+                    const key = readUint16(data, offset);
+                    const valueLength = readUint16(data, offset + 2);
+                    offset += 4;
+
+                    // 确保有足够的字节读取值
+                    if (offset + valueLength > data.length) {
+                        console.error("Invalid value length:", valueLength);
+                        break;
+                    }
+
+                    const value = data.slice(offset, offset + valueLength);
+                    offset += valueLength;
+
+                    console.log(
+                        `Key: ${key}, Value Length: ${valueLength}, Value: ${Array.from(
+                            value
+                        )
+                            .map(b => b.toString(16).padStart(2, "0"))
+                            .join(" ")}`
+                    );
+
+                    switch (key) {
+                        case 1: // ALPN
+                            params.alpn = parseAlpn(value, decoder);
+                            break;
+                        case 4: // IPv4 Hint
+                            params.ipv4hint = parseIpv4Hint(value);
+                            break;
+                        case 5: // ECH
+                            params.ech = base64Encode(value);
+                            break;
+                        case 6: // IPv6 Hint
+                            params.ipv6hint = parseIpv6Hint(value);
+                            break;
+                    }
+                }
+                return params;
+            }
+
+            function parseAlpn(value, decoder) {
+                const alpn = [];
+                let idx = 0;
+                while (idx < value.length) {
+                    const length = value[idx];
+                    if (idx + 1 + length > value.length) {
+                        console.error("Invalid ALPN length:", length);
+                        break;
+                    }
+                    alpn.push(
+                        decoder.decode(value.slice(idx + 1, idx + 1 + length))
+                    );
+                    idx += 1 + length;
+                }
+                return alpn;
+            }
+
+            function parseIpv4Hint(value) {
+                const ipv4hint = [];
+                for (let i = 0; i < value.length; i += 4) {
+                    if (i + 4 > value.length) {
+                        console.error("Invalid IPv4 hint length");
+                        break;
+                    }
+                    ipv4hint.push(
+                        `${value[i]}.${value[i + 1]}.${value[i + 2]}.${
+                            value[i + 3]
+                        }`
+                    );
+                }
+                return ipv4hint;
+            }
+
+            function parseIpv6Hint(value) {
+                const ipv6hint = [];
+                for (let i = 0; i < value.length; i += 16) {
+                    if (i + 16 > value.length) {
+                        console.error("Invalid IPv6 hint length");
+                        break;
+                    }
+                    const ipv6Parts = Array.from(value.slice(i, i + 16)).map(
+                        byte => byte.toString(16).padStart(2, "0")
+                    );
+                    let ipv6Addr = "";
+                    for (let j = 0; j < ipv6Parts.length; j += 2) {
+                        ipv6Addr += ipv6Parts[j] + ipv6Parts[j + 1];
+                        if (j < ipv6Parts.length - 2) {
+                            ipv6Addr += ":";
+                        }
+                    }
+                    ipv6hint.push(ipv6Addr);
+                }
+                return ipv6hint;
+            }
+            // Base64 编码
+            function base64Encode(data) {
+                const binaryString = String.fromCharCode(...data);
+                return btoa(unescape(encodeURIComponent(binaryString)));
+            }
+
+            // 表单提交事件
+            document
+                .getElementById("dnsForm")
+                .addEventListener("submit", async event => {
+                    event.preventDefault(); // 阻止表单默认提交行为
+
+                    const domain = document.getElementById("domain").value;
+                    const type = document.getElementById("type").value;
+                    const dohServer =
+                        document.getElementById("dohServer").value ||
+                        "https://cloudflare-dns.com/dns-query"; // 使用自定义或默认 DoH 服务器
+                    const resultElement = document.getElementById("result");
+
+                    resultElement.textContent = "Querying..."; // 显示加载状态
+
+                    try {
+                        const result = await queryDnsOverHttps(
+                            domain,
+                            type,
+                            dohServer
+                        );
+                        if (result) {
+                            resultElement.textContent = JSON.stringify(
+                                result,
+                                null,
+                                2
+                            ); // 格式化输出
+                        } else {
+                            resultElement.textContent = "No result found.";
+                        }
+                    } catch (error) {
+                        resultElement.textContent = `Error: ${error.message}`;
+                    }
+                });
+        </script>
+    </body>
+</html>
